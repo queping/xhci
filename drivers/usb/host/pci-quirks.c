@@ -823,6 +823,15 @@ static int handshake(void __iomem *ptr, u32 mask, u32 done,
 	return -ETIMEDOUT;
 }
 
+static int noxhci_port_switch;
+
+static int __init noxhci_port_switch_setup(char *str)
+{
+	noxhci_port_switch = 1;
+	return 0;
+}
+early_param("noxhci_port_switch", noxhci_port_switch_setup);
+
 /*
  * Intel's Panther Point chipset has two host controllers (EHCI and xHCI) that
  * share some number of ports.  These ports can be switched between either
@@ -860,8 +869,7 @@ void usb_enable_intel_xhci_ports(struct pci_dev *xhci_pdev)
 		return;
 
 	/* Don't switchover the ports if the user hasn't compiled the xHCI
-	 * driver.  Otherwise they will see "dead" USB ports that don't power
-	 * the devices.
+	 * driver or has explicitly disabled switchover
 	 */
 	if (!IS_ENABLED(CONFIG_USB_XHCI_HCD)) {
 		dev_warn(&xhci_pdev->dev,
@@ -869,6 +877,9 @@ void usb_enable_intel_xhci_ports(struct pci_dev *xhci_pdev)
 				"defaulting to EHCI.\n");
 		dev_warn(&xhci_pdev->dev,
 				"USB 3.0 devices will work at USB 2.0 speeds.\n");
+		usb_disable_xhci_ports(xhci_pdev);
+		return;
+	} else if (noxhci_port_switch) {
 		usb_disable_xhci_ports(xhci_pdev);
 		return;
 	}
